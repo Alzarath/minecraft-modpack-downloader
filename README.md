@@ -2,6 +2,13 @@
 
 Command-line Python downloader for Minecraft modpacks.
 
+## Requirements
+
+* [python-requests](http://python-requests.org/)
+* [python-slugify](https://github.com/un33k/python-slugify)
+
+## Usage
+
 ```sh
 usage: modpack-downloader.py [-h] [-f] VALUE
 
