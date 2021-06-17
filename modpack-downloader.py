@@ -17,21 +17,32 @@ parser.add_argument('-f', '--force', action='store_true', help="Forces re-downlo
 args = parser.parse_args()
 
 def extract_modpack(archive, directory):
+    """Extracts an `archive` to a `directory`"""
     with ZipFile(archive, 'r') as zip_ref:
         zip_ref.extractall(directory)
 
 def override_directories(source_dir, target_dir):
+    """Replaces the files at `target_dir` with files from `source_dir"""
     for picked_directory in Path(source_dir).glob('*'):
         if picked_directory.is_dir():
             picked_directory.rename(target_dir.joinpath(picked_directory.name))
     
-# Project ID URL: https://www.curseforge.com/projects/<ID>
-def download_file(url, directory=""):
-    # Download URL: https://media.forgecdn.net/files/<LE4 digits of download ID>/<GT4 digits of download ID>/<(HTML-formatted) File Name>
+def download_file(url, directory="", force=False):
+    """
+    Downloads a file from a `url` to a `directory`, optionally replacing files with `force`.
+
+        Paramters
+            url (string):       The url to download
+            directory (string): The directory to download the file to
+            force (boolean):    Whether to replace files that already exist
+
+        Returns:
+            file_path (string): The path to the downloaded file
+    """
     filename = url.split('/')[-1]
     file_path = Path(Path.cwd().joinpath(directory).joinpath(filename))
 
-    if not args.force and file_path.exists():
+    if not force and file_path.exists():
         print("Already downloaded %s. \033[96mSkipping...\033[0m" % filename)
         return file_path
 
@@ -41,7 +52,7 @@ def download_file(url, directory=""):
     if not contents:
         print("\033[91mFailed.\0330m")
         return None
-    #file_path = os.path.join(os.getcwd(), directory, filename)
+
     with open(file_path, 'wb') as output:
         output.write(contents.content)
     print("\033[92mDone.\033[0m")
@@ -49,6 +60,7 @@ def download_file(url, directory=""):
     return file_path
 
 def fetch_project_id(project_slug, max_search=20):
+    """Returns the project ID from a search of a `project_slug` with a maximum items to search through of `max_search`."""
     response = requests.get("%s/search?gameId=432&searchFilter=%s&pageSize=%s&sectionId=4471" % (API_URL, project_slug, str(max_search)), headers = { "User-Agent": USER_AGENT })
     json = response.json()
     for result in json:
@@ -57,8 +69,9 @@ def fetch_project_id(project_slug, max_search=20):
     print("Error: No results found for '%s'" % project_slug)
     sys.exit(1)
 
-def fetch_info(item_id):
-    response = requests.get("%s/%s" % (API_URL, str(item_id)), headers = { "User-Agent": USER_AGENT })
+def fetch_info(project_id):
+    """Returns the JSON value of a CurseForge project using a `project_id`."""
+    response = requests.get("%s/%s" % (API_URL, str(project_id)), headers = { "User-Agent": USER_AGENT })
 
     return response.json()
 
@@ -153,7 +166,7 @@ def main():
         fetch_url = "%s/%s/file/%s/download-url" % (API_URL, mod["projectID"], mod["fileID"])
         file_url = requests.get(fetch_url, headers = { "User-Agent": USER_AGENT }).text
         if file_url:
-            download_file(file_url, mod_path)
+            download_file(file_url, mod_path, args.force)
     
     override_directories(transfer_path.joinpath("overrides"), transfer_path)
 
