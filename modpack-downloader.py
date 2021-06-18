@@ -3,6 +3,8 @@ import os
 import requests
 import argparse
 import json
+from distutils import dir_util
+from distutils import file_util
 from pathlib import Path
 from zipfile import ZipFile
 from slugify import slugify
@@ -21,11 +23,14 @@ def extract_modpack(archive, directory):
     with ZipFile(archive, 'r') as zip_ref:
         zip_ref.extractall(directory)
 
-def override_directories(source_dir, target_dir):
-    """Replaces the files at `target_dir` with files from `source_dir"""
-    for picked_directory in Path(source_dir).glob('*'):
-        if picked_directory.is_dir():
-            picked_directory.rename(target_dir.joinpath(picked_directory.name))
+def override_files(source_dir, target_dir):
+    """Copy and replace files from inside `source_dir` to `target_dir`"""
+    for picked_file in Path(source_dir).glob('*'):
+        dest_file = target_dir.joinpath(picked_file.name)
+        if picked_file.is_dir():
+            dir_util.copy_tree(str(picked_file), str(dest_file))
+        else:
+            file_util.copy_file(str(picked_file), str(dest_file))
     
 def download_file(url, directory="", force=False):
     """
@@ -43,13 +48,15 @@ def download_file(url, directory="", force=False):
     file_path = Path(Path.cwd().joinpath(directory).joinpath(filename))
 
     if not force and file_path.exists():
-        print("Already downloaded %s. \033[96mSkipping...\033[0m" % filename)
+        print("Already downloaded %s. \033[96mSkipping...\033[0m" % filename, flush=True)
         return file_path
 
     contents = None
     print("Downloading %s..." % filename, end=" ", flush=True)
     try:
         contents = requests.get(url, headers = { 'User-Agent': USER_AGENT })
+    except KeyboardInterrupt as e:
+        print("Keyboard interrupted.")
     except:
         pass
 
@@ -148,22 +155,22 @@ def main():
     if not file_url:
         file_url = file_url or project_info["latestFiles"][0]["downloadUrl"]
 
-    write_path = Path.cwd().joinpath(slugify(project_info["name"]))
-    if not write_path.exists():
-        write_path.mkdir()
+    destination_path = Path.cwd().joinpath(slugify(project_info["name"]))
+    if not destination_path.exists():
+        destination_path.mkdir()
         print("Directory Created.")
 
-    modpack_path = download_file(file_url, write_path)
+    modpack_path = download_file(file_url, destination_path)
     if not modpack_path:
         print("Error: Failed to download modpack.")
         sys.exit(1)
-    extract_modpack(modpack_path, write_path)
+    extract_modpack(modpack_path, destination_path)
 
-    transfer_path = write_path.joinpath("minecraft")
+    transfer_path = destination_path.joinpath("minecraft")
     if not transfer_path.exists():
         transfer_path.mkdir()
 
-    with open("%s/manifest.json" % str(write_path), 'r') as manifest_file:
+    with open("%s/manifest.json" % str(destination_path), 'r') as manifest_file:
         manifest_data = manifest_file.read()
 
     manifest = json.loads(manifest_data)
@@ -176,6 +183,8 @@ def main():
         file_url = None
         try:
             file_url = requests.get(fetch_url, headers = { "User-Agent": USER_AGENT }).text
+        except KeyboardInterrupt as e:
+            print("Keyboard interrupted.")
         except:
             print("Attempted to acquire mod information for %s. \033[91mFailed.\033[0m" % mod["projectID"])
             mod_failures = True
@@ -183,7 +192,7 @@ def main():
         if file_url:
             download_file(file_url, mod_path, args.force)
     
-    override_directories(transfer_path.joinpath("overrides"), transfer_path)
+    override_files(destination_path.joinpath("overrides"), transfer_path)
 
     print("Modpack Download finished.")
     if mod_failures:
