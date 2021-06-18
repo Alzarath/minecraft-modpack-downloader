@@ -31,7 +31,7 @@ def download_file(url, directory="", force=False):
     """
     Downloads a file from a `url` to a `directory`, optionally replacing files with `force`.
 
-        Paramters
+        Paramters:
             url (string):       The url to download
             directory (string): The directory to download the file to
             force (boolean):    Whether to replace files that already exist
@@ -46,11 +46,16 @@ def download_file(url, directory="", force=False):
         print("Already downloaded %s. \033[96mSkipping...\033[0m" % filename)
         return file_path
 
+    contents = None
     print("Downloading %s..." % filename, end=" ", flush=True)
-    contents = requests.get(url, headers = { 'User-Agent': USER_AGENT })
+    try:
+        contents = requests.get(url, headers = { 'User-Agent': USER_AGENT })
+    except:
+        pass
 
     if not contents:
-        print("\033[91mFailed.\0330m")
+        print("\033[91mFailed.\033[0m")
+        mod_failures = True
         return None
 
     with open(file_path, 'wb') as output:
@@ -76,6 +81,7 @@ def fetch_info(project_id):
     return response.json()
 
 def main():
+    mod_failures = False
     project_url = None
     project_id = None
     download_id = None
@@ -93,10 +99,10 @@ def main():
             if split_url[-2] == "modpacks":
                 project_slug = split_url[-1]
             elif split_url[-2] == "projects":
-                project_id = split_url[-1]
+                project_id = int(split_url[-1])
             elif split_url[-2] == "files":
                 project_slug = split_url[-3]
-                download_id = split_url[-1]
+                download_id = int(split_url[-1])
             else:
                 print("Error: Something went wrong parsing the URL.\n\nValid URLs:\nhttps://www.curseforge.com/projects/<ID>\nhttps://www.curseforge.com/minecraft/modpacks/<MODPACK>\nhttps://www.curseforge.com/minecraft/modpacks/<MODPACK>/download/<DOWNLOAD-ID>\n")
                 parser.print_help()
@@ -123,23 +129,26 @@ def main():
         print("\033[92mDone.\033[0m")
     else:
         print("")
-        print("\033[91mFailed.\0330m. Could not fetch project info.")
+        print("\033[91mFailed.\033[0m. Could not fetch project info.")
         sys.exit(1)
 
+    download_index = None
     file_url = None
     # If the download ID is known, get the file URL
     if download_id:
-        for file_index in project_info["latestFiles"]:
-            if file_index["id"] == int(download_id):
+        for i in range(len(project_info["latestFiles"])):
+            if project_info["latestFiles"][i]["id"] == download_id:
+                print(file_index)
                 file_url = file_index["downloadUrl"]
                 break
+    else:
+        download_id = project_info["latestFiles"][0]["id"]
 
     # If the download ID is not known or fetching the file url from the download ID failed, get the first file URL
     if not file_url:
         file_url = file_url or project_info["latestFiles"][0]["downloadUrl"]
 
     write_path = Path.cwd().joinpath(slugify(project_info["name"]))
-    #write_path = os.path.abspath(slugify(project_info["name"]))
     if not write_path.exists():
         write_path.mkdir()
         print("Directory Created.")
@@ -154,22 +163,30 @@ def main():
     if not transfer_path.exists():
         transfer_path.mkdir()
 
-    with open("%s/manifest.json" % str(write_path), 'r') as input_file:
-        input_file_data = input_file.read()
+    with open("%s/manifest.json" % str(write_path), 'r') as manifest_file:
+        manifest_data = manifest_file.read()
 
-    manifest = json.loads(input_file_data)
+    manifest = json.loads(manifest_data)
 
     mod_path = transfer_path.joinpath("mods")
     if not mod_path.exists():
         mod_path.mkdir()
     for mod in manifest["files"]:
         fetch_url = "%s/%s/file/%s/download-url" % (API_URL, mod["projectID"], mod["fileID"])
-        file_url = requests.get(fetch_url, headers = { "User-Agent": USER_AGENT }).text
+        file_url = None
+        try:
+            file_url = requests.get(fetch_url, headers = { "User-Agent": USER_AGENT }).text
+        except:
+            print("Attempted to acquire mod information for %s. \033[91mFailed.\033[0m" % mod["projectID"])
+            mod_failures = True
+            continue
         if file_url:
             download_file(file_url, mod_path, args.force)
     
     override_directories(transfer_path.joinpath("overrides"), transfer_path)
 
     print("Modpack Download finished.")
+    if mod_failures:
+        print("There were errors downloading mods. Please try again.")
 
 main()
