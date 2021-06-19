@@ -141,15 +141,16 @@ def main():
 
     download_index = None
     file_url = None
+    print(download_id)
     # If the download ID is known, get the file URL
     if download_id:
         for i in range(len(project_info["latestFiles"])):
             if project_info["latestFiles"][i]["id"] == download_id:
-                print(file_index)
-                file_url = file_index["downloadUrl"]
+                file_url = project_info["latestFiles"][i]["downloadUrl"]
                 break
     else:
         download_id = project_info["latestFiles"][0]["id"]
+    print(file_url)
 
     # If the download ID is not known or fetching the file url from the download ID failed, get the first file URL
     if not file_url:
