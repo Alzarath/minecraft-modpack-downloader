@@ -135,13 +135,11 @@ def main():
     if project_info:
         print("\033[92mDone.\033[0m")
     else:
-        print("")
-        print("\033[91mFailed.\033[0m. Could not fetch project info.")
+        print("\033[91mFailed.\033[0m.\nCould not fetch project info.")
         sys.exit(1)
 
     download_index = None
     file_url = None
-    print(download_id)
     # If the download ID is known, get the file URL
     if download_id:
         for i in range(len(project_info["latestFiles"])):
@@ -150,7 +148,6 @@ def main():
                 break
     else:
         download_id = project_info["latestFiles"][0]["id"]
-    print(file_url)
 
     # If the download ID is not known or fetching the file url from the download ID failed, get the first file URL
     if not file_url:
