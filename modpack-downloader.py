@@ -13,7 +13,8 @@ API_URL="https://addons-ecs.forgesvc.net/api/v2/addon"
 USER_AGENT="Mozilla/5.0 (X11; Linux x86_64; rv:89.0) Gecko/20100101 Firefox/89.0"
 
 parser = argparse.ArgumentParser(description="Downloads full Minecraft modpacks from Curseforge.")
-parser.add_argument('value', metavar='VALUE', type=str, help="URL or ID for the modpack")
+parser.add_argument('value', metavar='PACK', type=str, help="URL or ID for the modpack")
+parser.add_argument('download', metavar='DOWN', type=int, nargs='?', help="ID for the modpack download")
 parser.add_argument('-f', '--force', action='store_true', help="Forces re-downloading of all files.")
 
 args = parser.parse_args()
@@ -83,7 +84,13 @@ def fetch_project_id(project_slug, max_search=20):
 
 def fetch_info(project_id):
     """Returns the JSON value of a CurseForge project using a `project_id`."""
-    response = requests.get("%s/%s" % (API_URL, str(project_id)), headers = { "User-Agent": USER_AGENT })
+    response = None
+    try:
+        response = requests.get("%s/%s" % (API_URL, str(project_id)), headers = { "User-Agent": USER_AGENT })
+    except:
+        print("\033[91mFailed.\033[0m.")
+        return None
+    print("\033[92mDone.\033[0m")
 
     return response.json()
 
@@ -127,18 +134,18 @@ def main():
             else:
                 project_slug = args.value
 
+    if args.download:
+        download_id = args.download
+
     if project_slug:
         project_id = fetch_project_id(project_slug)
 
     print("Fetching project info...", end = " ", flush=True)
     project_info = fetch_info(project_id)
-    if project_info:
-        print("\033[92mDone.\033[0m")
-    else:
-        print("\033[91mFailed.\033[0m.\nCould not fetch project info.")
+    if not project_info:
+        print("Error: Could not fetch project info.")
         sys.exit(1)
 
-    download_index = None
     file_url = None
     # If the download ID is known, get the file URL
     if download_id:
