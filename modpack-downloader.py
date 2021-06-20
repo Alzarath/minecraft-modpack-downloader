@@ -56,8 +56,8 @@ def download_file(url, directory="", force=False):
     print("Downloading %s..." % filename, end=" ", flush=True)
     try:
         contents = requests.get(url, headers = { 'User-Agent': USER_AGENT })
-    except KeyboardInterrupt as e:
-        print("Keyboard interrupted.")
+    except KeyboardInterrupt:
+        raise
     except:
         pass
 
@@ -66,7 +66,7 @@ def download_file(url, directory="", force=False):
         mod_failures = True
         return None
 
-    with open(file_path, 'wb') as output:
+    with file_path.open('wb') as output:
         output.write(contents.content)
     print("\033[92mDone.\033[0m")
 
@@ -163,19 +163,29 @@ def main():
     destination_path = Path.cwd().joinpath(slugify(project_info["name"]))
     if not destination_path.exists():
         destination_path.mkdir()
-        print("Directory Created.")
+        print("Created directory %s." % destination_path.name)
 
-    modpack_path = download_file(file_url, destination_path)
+    download_path = destination_path.joinpath("modpack")
+    if not download_path.exists():
+        download_path.mkdir()
+
+    modpack_path = download_file(file_url, download_path)
     if not modpack_path:
         print("Error: Failed to download modpack.")
         sys.exit(1)
-    extract_modpack(modpack_path, destination_path)
 
-    transfer_path = destination_path.joinpath("minecraft")
+    extracted_path = download_path.joinpath("extracted")
+    if not extracted_path.exists():
+        extracted_path.mkdir()
+
+    extract_modpack(modpack_path, extracted_path)
+
+    transfer_path = destination_path.joinpath("modpack")
     if not transfer_path.exists():
         transfer_path.mkdir()
 
-    with open("%s/manifest.json" % str(destination_path), 'r') as manifest_file:
+    manifest_path = extracted_path.joinpath("manifest.json")
+    with manifest_path.open('r') as manifest_file:
         manifest_data = manifest_file.read()
 
     manifest = json.loads(manifest_data)
@@ -183,21 +193,86 @@ def main():
     mod_path = transfer_path.joinpath("mods")
     if not mod_path.exists():
         mod_path.mkdir()
-    for mod in manifest["files"]:
-        fetch_url = "%s/%s/file/%s/download-url" % (API_URL, mod["projectID"], mod["fileID"])
-        file_url = None
-        try:
-            file_url = requests.get(fetch_url, headers = { "User-Agent": USER_AGENT }).text
-        except KeyboardInterrupt as e:
-            print("Keyboard interrupted.")
-        except:
-            print("Attempted to acquire mod information for %s. \033[91mFailed.\033[0m" % mod["projectID"])
-            mod_failures = True
-            continue
-        if file_url:
-            download_file(file_url, mod_path, args.force)
-    
+
+    interrupted = False
+    progress_path = destination_path.joinpath("progress.json")
+    if progress_path.exists() and progress_path.stat().st_size > 0:
+        with progress_path.open('r') as progress_file:
+            progress_data = progress_file.read()
+        progress = json.loads(progress_data)
+    else:
+        progress = {}
+
+    try:
+        for mod in manifest["files"]:
+            progress_modified = False
+            mod_project_id = str(mod["projectID"])
+            mod_file_id = str(mod["fileID"])
+
+            if mod_project_id not in progress:
+                progress[mod_project_id] = {}
+                progress_modified = True
+            if mod_file_id not in progress[mod_project_id]:
+                progress[mod_project_id][mod_file_id] = {}
+                progress_modified = True
+
+            if "downloaded" not in progress[mod_project_id][mod_file_id] or not progress[mod_project_id][mod_file_id]["downloaded"] or "name" not in progress[mod_project_id][mod_file_id]:
+                file_url = None
+                fetch_url = None
+                if "url" in progress[mod_project_id][mod_file_id]:
+                    file_url = progress[mod_project_id][mod_file_id]["url"]
+                else:
+                    fetch_url = "%s/%s/file/%s/download-url" % (API_URL, mod_project_id, mod_file_id)
+                mod_download_path = None
+
+                if not file_url:
+                    if not fetch_url:
+                        continue
+                    try:
+                        file_url = requests.get(fetch_url, headers = { "User-Agent": USER_AGENT }).text
+                    except KeyboardInterrupt:
+                        interrupted = True
+                        print("Keyboard interrupted.")
+                        break
+                    except:
+                        print("Attempted to acquire mod information for %s. \033[91mFailed.\033[0m" % mod_project_id)
+                        mod_failures = True
+                        continue
+
+                if file_url:
+                    if "url" not in progress[mod_project_id][mod_file_id] or progress[mod_project_id][mod_file_id]["url"] != file_url:
+                        progress[mod_project_id][mod_file_id]["url"] = file_url
+                        progress_modified = True
+
+                    try:
+                        mod_download_path = download_file(file_url, mod_path, args.force)
+                    except KeyboardInterrupt:
+                        interrupted = True
+                        print("Keyboard interrupted.")
+                        break
+
+                    if mod_download_path:
+                        if "name" not in progress[mod_project_id][mod_file_id]:
+                            progress[mod_project_id][mod_file_id]["name"] = mod_download_path.name
+                            progress_modified = True
+                        progress_modified = True
+                    progress[mod_project_id][mod_file_id]["downloaded"] = (mod_download_path != None)
+            else:
+                print("Already downloaded %s. \033[96mSkipping...\033[0m" % (progress[mod_project_id][mod_file_id].get("name") or mod_project_id), flush=True)
+    except:
+        raise
+    finally:
+        if progress_modified:
+            try:
+                with progress_path.open('w') as output:
+                    output.write(json.dumps(progress, indent=4))
+            except KeyboardInterrupt:
+                pass
+        if interrupted:
+            return
+
     override_files(destination_path.joinpath("overrides"), transfer_path)
+    
 
     print("Modpack Download finished.")
     if mod_failures:
