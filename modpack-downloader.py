@@ -169,7 +169,7 @@ def main():
     if not download_path.exists():
         download_path.mkdir()
 
-    modpack_path = download_file(file_url, download_path)
+    modpack_path = download_file(file_url, download_path, args.force)
     if not modpack_path:
         print("Error: Failed to download modpack.")
         sys.exit(1)
@@ -216,7 +216,7 @@ def main():
                 progress[mod_project_id][mod_file_id] = {}
                 progress_modified = True
 
-            if "downloaded" not in progress[mod_project_id][mod_file_id] or not progress[mod_project_id][mod_file_id]["downloaded"] or "name" not in progress[mod_project_id][mod_file_id]:
+            if args.force or "downloaded" not in progress[mod_project_id][mod_file_id] or not progress[mod_project_id][mod_file_id]["downloaded"] or "name" not in progress[mod_project_id][mod_file_id]:
                 file_url = None
                 fetch_url = None
                 if "url" in progress[mod_project_id][mod_file_id]:
