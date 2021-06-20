@@ -198,7 +198,6 @@ def main():
     if not mods_path.exists():
         mods_path.mkdir()
 
-    interrupted = False
     progress_file = destination_path.joinpath("progress.json")
     if progress_file.exists() and progress_file.stat().st_size > 0:
         with progress_file.open('r') as progress_file:
@@ -208,6 +207,7 @@ def main():
         progress_file.touch()
         progress = {}
 
+    interrupted = False
     try:
         for mod in manifest["files"]:
             progress_modified = False
@@ -264,21 +264,30 @@ def main():
                     progress[mod_project_id][mod_file_id]["downloaded"] = (mod_download_file != None)
             else:
                 print("Already downloaded %s. \033[96mSkipping...\033[0m" % (progress[mod_project_id][mod_file_id].get("name") or mod_project_id), flush=True)
+        try:
+            print("Overriding files...", end=" ", flush=True)
+            override_files(mod_download_path, mods_path)
+            override_files(extracted_path.joinpath("overrides"), modpack_path)
+            print("\033[92mDone.\033[0m")
+        except:
+            print("\033[91mFailed.\033[0m")
+            raise
     except:
         raise
     finally:
         if progress_modified:
             try:
+                print("Saving download progress...", end=" ", flush=True)
                 with progress_file.open('w') as output:
                     output.write(json.dumps(progress, indent=4))
+                print("\033[92mDone.\033[0m")
             except KeyboardInterrupt:
                 pass
+            except:
+                print("\033[91mFailed.\033[0m")
+                raise
         if interrupted:
             return
-
-    override_files(mod_download_path.joinpath("overrides"), mods_path)
-    override_files(extracted_path.joinpath("overrides"), modpack_path)
-    
 
     print("Modpack Download finished.")
     if mod_failures:
