@@ -165,12 +165,16 @@ def main():
         destination_path.mkdir()
         print("Created directory %s." % destination_path.name)
 
-    download_path = destination_path.joinpath("modpack")
+    modpack_path = destination_path.joinpath("modpack")
+    if not modpack_path.exists():
+        modpack_path.mkdir()
+
+    download_path = destination_path.joinpath("download")
     if not download_path.exists():
         download_path.mkdir()
 
-    modpack_path = download_file(file_url, download_path, args.force)
-    if not modpack_path:
+    modpack_file = download_file(file_url, download_path, args.force)
+    if not modpack_file or not modpack_file.exists() or modpack_file.stat().st_size == 0:
         print("Error: Failed to download modpack.")
         sys.exit(1)
 
@@ -178,29 +182,30 @@ def main():
     if not extracted_path.exists():
         extracted_path.mkdir()
 
-    extract_modpack(modpack_path, extracted_path)
+    extract_modpack(modpack_file, extracted_path)
 
-    transfer_path = destination_path.joinpath("modpack")
-    if not transfer_path.exists():
-        transfer_path.mkdir()
-
-    manifest_path = extracted_path.joinpath("manifest.json")
-    with manifest_path.open('r') as manifest_file:
+    manifest_file = extracted_path.joinpath("manifest.json")
+    with manifest_file.open('r') as manifest_file:
         manifest_data = manifest_file.read()
 
     manifest = json.loads(manifest_data)
 
-    mod_path = transfer_path.joinpath("mods")
-    if not mod_path.exists():
-        mod_path.mkdir()
+    mod_download_path = download_path.joinpath("mods")
+    if not mod_download_path.exists():
+        mod_download_path.mkdir()
+
+    mods_path = modpack_path.joinpath("mods")
+    if not mods_path.exists():
+        mods_path.mkdir()
 
     interrupted = False
-    progress_path = destination_path.joinpath("progress.json")
-    if progress_path.exists() and progress_path.stat().st_size > 0:
-        with progress_path.open('r') as progress_file:
+    progress_file = destination_path.joinpath("progress.json")
+    if progress_file.exists() and progress_file.stat().st_size > 0:
+        with progress_file.open('r') as progress_file:
             progress_data = progress_file.read()
         progress = json.loads(progress_data)
     else:
+        progress_file.touch()
         progress = {}
 
     try:
@@ -223,7 +228,7 @@ def main():
                     file_url = progress[mod_project_id][mod_file_id]["url"]
                 else:
                     fetch_url = "%s/%s/file/%s/download-url" % (API_URL, mod_project_id, mod_file_id)
-                mod_download_path = None
+                mod_download_file = None
 
                 if not file_url:
                     if not fetch_url:
@@ -245,18 +250,18 @@ def main():
                         progress_modified = True
 
                     try:
-                        mod_download_path = download_file(file_url, mod_path, args.force)
+                        mod_download_file = download_file(file_url, mod_download_path, args.force)
                     except KeyboardInterrupt:
                         interrupted = True
                         print("Keyboard interrupted.")
                         break
 
-                    if mod_download_path:
+                    if mod_download_file:
                         if "name" not in progress[mod_project_id][mod_file_id]:
-                            progress[mod_project_id][mod_file_id]["name"] = mod_download_path.name
+                            progress[mod_project_id][mod_file_id]["name"] = mod_download_file.name
                             progress_modified = True
                         progress_modified = True
-                    progress[mod_project_id][mod_file_id]["downloaded"] = (mod_download_path != None)
+                    progress[mod_project_id][mod_file_id]["downloaded"] = (mod_download_file != None)
             else:
                 print("Already downloaded %s. \033[96mSkipping...\033[0m" % (progress[mod_project_id][mod_file_id].get("name") or mod_project_id), flush=True)
     except:
@@ -264,14 +269,15 @@ def main():
     finally:
         if progress_modified:
             try:
-                with progress_path.open('w') as output:
+                with progress_file.open('w') as output:
                     output.write(json.dumps(progress, indent=4))
             except KeyboardInterrupt:
                 pass
         if interrupted:
             return
 
-    override_files(destination_path.joinpath("overrides"), transfer_path)
+    override_files(mod_download_path.joinpath("overrides"), mods_path)
+    override_files(extracted_path.joinpath("overrides"), modpack_path)
     
 
     print("Modpack Download finished.")
