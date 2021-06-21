@@ -82,7 +82,6 @@ def fetch_project_id(project_slug, max_search=20):
         if result["slug"] == project_slug:
             return result["id"]
     error_msg = "Error: No results found for '%s'" % project_slug
-    print(error_msg)
     sys.exit(error_msg)
 
 def fetch_info(project_id):
@@ -121,20 +120,17 @@ def main():
                 project_slug = split_url[-3]
                 download_id = int(split_url[-1])
             else:
-                error_msg = "Error: Unable to parse the URL."
-                print("%s\n\nValid URLs:\nhttps://www.curseforge.com/projects/<ID>\nhttps://www.curseforge.com/minecraft/modpacks/<MODPACK>\nhttps://www.curseforge.com/minecraft/modpacks/<MODPACK>/download/<DOWNLOAD-ID>\n" % error_msg)
+                error_msg = "Error: Unable to parse the URL.\n\nValid URLs:\nhttps://www.curseforge.com/projects/<ID>\nhttps://www.curseforge.com/minecraft/modpacks/<MODPACK>\nhttps://www.curseforge.com/minecraft/modpacks/<MODPACK>/download/<DOWNLOAD-ID>"
                 parser.print_help()
                 sys.exit(error_msg)
         elif len(split_url) > 0 and split_url[0] == "http:":
-            error_msg = "Error: Unable to parse the URL."
-            print("%s\n\nValid URLs:\nhttps://www.curseforge.com/projects/<ID>\nhttps://www.curseforge.com/minecraft/modpacks/<MODPACK>\nhttps://www.curseforge.com/minecraft/modpacks/<MODPACK>/download/<DOWNLOAD-ID>\n" % error_msg)
+            error_msg = "Error: Unable to parse the URL.\n\nValid URLs:\nhttps://www.curseforge.com/projects/<ID>\nhttps://www.curseforge.com/minecraft/modpacks/<MODPACK>\nhttps://www.curseforge.com/minecraft/modpacks/<MODPACK>/download/<DOWNLOAD-ID>"
             parser.print_help()
             sys.exit(error_msg)
         else:
             import re
             if re.search('[\W-]', args.value):
                 error_msg = "Error: Invalid argument."
-                print("%s\n" % error_msg)
                 parser.print_help()
                 sys.exit(error_msg)
             else:
@@ -149,8 +145,8 @@ def main():
     print("Fetching project info...", end = " ", flush=True)
     project_info = fetch_info(project_id)
     if not project_info:
-        print("Error: Could not fetch project info.")
-        sys.exit(1)
+        error_msg = "Error: Could not fetch project info."
+        sys.exit(error_msg)
 
     file_url = None
     # If the download ID is known, get the file URL
@@ -188,7 +184,6 @@ def main():
     modpack_file = download_file(file_url, download_path, args.force)
     if not modpack_file or not modpack_file.exists() or modpack_file.stat().st_size == 0:
         error_msg = "Error: Failed to download modpack."
-        print(error_msg)
         sys.exit(error_msg)
 
     extracted_path = download_path.joinpath("extracted")
@@ -321,8 +316,7 @@ def main():
         output.write(readme["text"])
     print("Modpack Download finished.")
     if mod_failures:
-        error_msg = "Error: Failed to download all mods."
-        print("%s Please try again." % error_msg)
+        error_msg = "Error: Failed to download all mods. Please try again."
         sys.exit(error_msg)
 
 main()
