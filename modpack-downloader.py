@@ -149,21 +149,27 @@ def main():
     file_url = None
     # If the download ID is known, get the file URL
     if download_id:
-        for i in range(len(project_info["latestFiles"])):
-            if project_info["latestFiles"][i]["id"] == download_id:
-                file_url = project_info["latestFiles"][i]["downloadUrl"]
-                break
+        fetch_url = "%s/%s/file/%s/download-url" % (API_URL, project_id, download_id)
+        file_url = requests.get(fetch_url, headers = { "User-Agent": USER_AGENT }).text
     else:
-        download_id = project_info["latestFiles"][0]["id"]
+        download_id = project_info["latestFiles"][-1]["id"]
 
-    # If the download ID is not known or fetching the file url from the download ID failed, get the first file URL
+    # If the download ID is not known or fetching the file url from the download ID failed, get the latest file URL
     if not file_url:
-        file_url = file_url or project_info["latestFiles"][0]["downloadUrl"]
+        file_url = project_info["latestFiles"][-1]["downloadUrl"]
 
-    destination_path = Path.cwd().joinpath(slugify(project_info["name"]))
+    filename_list = file_url.split('/')[-1].split('.')
+    filename_list.pop()
+    filename = ''.join(filename_list)
+
+    project_path = Path.cwd().joinpath(slugify(project_info["name"]))
+    if not project_path.exists():
+        project_path.mkdir()
+
+    destination_path = project_path.joinpath(slugify(filename))
     if not destination_path.exists():
         destination_path.mkdir()
-        print("Created directory %s." % destination_path.name)
+        print("Created directory %s/%s." % (project_path.name, destination_path.name))
 
     modpack_path = destination_path.joinpath("modpack")
     if not modpack_path.exists():
@@ -289,6 +295,19 @@ def main():
         if interrupted:
             return
 
+    readme = {}
+    readme["path"] = destination_path.joinpath("README.md")
+    readme["text"] = '\n'.join((f"Welcome to the Minecraft Modpack Downloader's installation guide for {manifest['name']}!",
+                                 "",
+                                 "To install the modpack:",
+                                 "",
+                                 f"1. Download and install [Minecraft Forge for Minecraft {manifest['minecraft']['version']}](https://files.minecraftforge.net/net/minecraftforge/forge/index_{manifest['minecraft']['version']}.html). (Recommended: {manifest['minecraft']['modLoaders'][0]['id']})",
+                                 "2. Run this version of Minecraft Forge from your Minecraft launcher to generate an installation folder if you haven't already.",
+                                f"3. Copy the contents of `{str(modpack_path)}` to your Minecraft Forge installation folder."
+                              ))
+
+    with readme["path"].open('w') as output:
+        output.write(readme["text"])
     print("Modpack Download finished.")
     if mod_failures:
         print("There were errors downloading mods. Please try again.")
