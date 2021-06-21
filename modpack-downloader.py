@@ -19,6 +19,8 @@ parser.add_argument('-f', '--force', action='store_true', help="Forces re-downlo
 
 args = parser.parse_args()
 
+error_msg = ""
+
 def extract_modpack(archive, directory):
     """Extracts an `archive` to a `directory`"""
     with ZipFile(archive, 'r') as zip_ref:
@@ -79,8 +81,9 @@ def fetch_project_id(project_slug, max_search=20):
     for result in json:
         if result["slug"] == project_slug:
             return result["id"]
-    print("Error: No results found for '%s'" % project_slug)
-    sys.exit(1)
+    error_msg = "Error: No results found for '%s'" % project_slug
+    print(error_msg)
+    sys.exit(error_msg)
 
 def fetch_info(project_id):
     """Returns the JSON value of a CurseForge project using a `project_id`."""
@@ -118,19 +121,22 @@ def main():
                 project_slug = split_url[-3]
                 download_id = int(split_url[-1])
             else:
-                print("Error: Something went wrong parsing the URL.\n\nValid URLs:\nhttps://www.curseforge.com/projects/<ID>\nhttps://www.curseforge.com/minecraft/modpacks/<MODPACK>\nhttps://www.curseforge.com/minecraft/modpacks/<MODPACK>/download/<DOWNLOAD-ID>\n")
+                error_msg = "Error: Unable to parse the URL."
+                print("%s\n\nValid URLs:\nhttps://www.curseforge.com/projects/<ID>\nhttps://www.curseforge.com/minecraft/modpacks/<MODPACK>\nhttps://www.curseforge.com/minecraft/modpacks/<MODPACK>/download/<DOWNLOAD-ID>\n" % error_msg)
                 parser.print_help()
-                sys.exit(1)
+                sys.exit(error_msg)
         elif len(split_url) > 0 and split_url[0] == "http:":
-            print("Error: Something went wrong parsing the URL.\n\nValid URLs:\nhttps://www.curseforge.com/projects/<ID>\nhttps://www.curseforge.com/minecraft/modpacks/<MODPACK>\nhttps://www.curseforge.com/minecraft/modpacks/<MODPACK>/download/<DOWNLOAD-ID>\n")
+            error_msg = "Error: Unable to parse the URL."
+            print("%s\n\nValid URLs:\nhttps://www.curseforge.com/projects/<ID>\nhttps://www.curseforge.com/minecraft/modpacks/<MODPACK>\nhttps://www.curseforge.com/minecraft/modpacks/<MODPACK>/download/<DOWNLOAD-ID>\n" % error_msg)
             parser.print_help()
-            sys.exit(1)
+            sys.exit(error_msg)
         else:
             import re
             if re.search('[\W-]', args.value):
-                print("Error: Invalid argument.\n")
+                error_msg = "Error: Invalid argument."
+                print("%s\n" % error_msg)
                 parser.print_help()
-                sys.exit(1)
+                sys.exit(error_msg)
             else:
                 project_slug = args.value
 
@@ -181,8 +187,9 @@ def main():
 
     modpack_file = download_file(file_url, download_path, args.force)
     if not modpack_file or not modpack_file.exists() or modpack_file.stat().st_size == 0:
-        print("Error: Failed to download modpack.")
-        sys.exit(1)
+        error_msg = "Error: Failed to download modpack."
+        print(error_msg)
+        sys.exit(error_msg)
 
     extracted_path = download_path.joinpath("extracted")
     if not extracted_path.exists():
@@ -267,17 +274,21 @@ def main():
                             progress[mod_project_id][mod_file_id]["name"] = mod_download_file.name
                             progress_modified = True
                         progress_modified = True
+                    else:
+                        mod_failures = True
                     progress[mod_project_id][mod_file_id]["downloaded"] = (mod_download_file != None)
             else:
                 print("Already downloaded %s. \033[96mSkipping...\033[0m" % (progress[mod_project_id][mod_file_id].get("name") or mod_project_id), flush=True)
-        try:
-            print("Overriding files...", end=" ", flush=True)
-            override_files(mod_download_path, mods_path)
-            override_files(extracted_path.joinpath("overrides"), modpack_path)
-            print("\033[92mDone.\033[0m")
-        except:
-            print("\033[91mFailed.\033[0m")
-            raise
+
+        if not interrupted:
+            try:
+                print("Overriding files...", end=" ", flush=True)
+                override_files(mod_download_path, mods_path)
+                override_files(extracted_path.joinpath("overrides"), modpack_path)
+                print("\033[92mDone.\033[0m")
+            except:
+                print("\033[91mFailed.\033[0m")
+                raise
     except:
         raise
     finally:
@@ -310,6 +321,8 @@ def main():
         output.write(readme["text"])
     print("Modpack Download finished.")
     if mod_failures:
-        print("There were errors downloading mods. Please try again.")
+        error_msg = "Error: Failed to download all mods."
+        print("%s Please try again." % error_msg)
+        sys.exit(error_msg)
 
 main()
