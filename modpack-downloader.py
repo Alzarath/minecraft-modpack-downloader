@@ -360,7 +360,7 @@ def main():
         except:
             raise
         finally:
-            # If any mods failed to download, inform the user and allow them to decide what to do. TODO: Retry option
+            # If any mods failed to download, inform the user and allow them to decide what to do.
             input_response = None
 
             if interrupted:
@@ -393,17 +393,6 @@ def main():
                 sys.exit(error_msg)
 
     # Create a README for installing the modpack. TODO: Other mod APIs (e.g. Fabric)
-    # readme = {}
-    # readme["path"] = destination_path.joinpath("README.md")
-    # readme["text"] = '\n'.join((f"Welcome to the Minecraft Modpack Downloader's installation guide for {manifest['name']}!",
-    #                              "",
-    #                              "To install the modpack:",
-    #                              "",
-    #                             f"1. Download and install [Minecraft Forge for Minecraft {manifest['minecraft']['version']}](https://files.minecraftforge.net/net/minecraftforge/forge/index_{manifest['minecraft']['version']}.html). (Recommended: {manifest['minecraft']['modLoaders'][0]['id']})",
-    #                              "2. Run this version of Minecraft Forge from your Minecraft launcher to generate an installation folder if you haven't already.",
-    #                             f"3. Copy the contents of `{str(modpack_path)}` to your Minecraft Forge installation folder."
-    #                           ))
-
     readme = {
         "path" : destination_path.joinpath("README.md"),
         "text" : '\n'.join((f"Welcome to the Minecraft Modpack Downloader's installation guide for {manifest['name']}!",
