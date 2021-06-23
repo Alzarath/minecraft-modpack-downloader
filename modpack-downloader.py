@@ -133,7 +133,7 @@ def fetch_info(project_id: int):
 
 def create_missing_dir(created_dir: Path):
     if not created_dir.exists():
-        return created_dir.mkdir()
+        created_dir.mkdir()
     return created_dir
 
 def main():
@@ -149,26 +149,27 @@ def main():
         split_url = args.value.split('/')
 
         # Assume the given value is a modpack URL
-        if len(split_url) >= 2:
+        if split_url[0] == "http:" or split_url[0] == "https:":
+
             if not split_url[-1]:
                 split_url.pop() # Remove empty trailing element
-            if split_url[-2] == "modpacks":
-                project_slug = split_url[-1]
-            elif split_url[-2] == "projects":
-                project_id = int(split_url[-1])
-            elif split_url[-2] == "files":
-                project_slug = split_url[-3]
-                download_id = int(split_url[-1])
-            # The modpack URL is probably invalid
+            if len(split_url) >= 2:
+                if split_url[-2] == "modpacks":
+                    project_slug = split_url[-1]
+                elif split_url[-2] == "projects":
+                    project_id = int(split_url[-1])
+                elif split_url[-2] == "files":
+                    project_slug = split_url[-3]
+                    download_id = int(split_url[-1])
+                # The URL is probably invalid
+                else:
+                    error_msg = "Error: Unable to parse the URL.\n\nValid URLs:\nhttps://www.curseforge.com/projects/<ID>\nhttps://www.curseforge.com/minecraft/modpacks/<MODPACK>\nhttps://www.curseforge.com/minecraft/modpacks/<MODPACK>/download/<DOWNLOAD-ID>"
+                    parser.print_help()
+                    sys.exit(error_msg)
             else:
                 error_msg = "Error: Unable to parse the URL.\n\nValid URLs:\nhttps://www.curseforge.com/projects/<ID>\nhttps://www.curseforge.com/minecraft/modpacks/<MODPACK>\nhttps://www.curseforge.com/minecraft/modpacks/<MODPACK>/download/<DOWNLOAD-ID>"
                 parser.print_help()
                 sys.exit(error_msg)
-        # The URL is probably invalid
-        elif len(split_url) > 0 and split_url[0] == "http:":
-            error_msg = "Error: Unable to parse the URL.\n\nValid URLs:\nhttps://www.curseforge.com/projects/<ID>\nhttps://www.curseforge.com/minecraft/modpacks/<MODPACK>\nhttps://www.curseforge.com/minecraft/modpacks/<MODPACK>/download/<DOWNLOAD-ID>"
-            parser.print_help()
-            sys.exit(error_msg)
         else:
             project_slug = slugify(args.value)
             # The value does not look like anything usable
@@ -297,7 +298,7 @@ def main():
                 if not force_download and mod_info["downloaded"] and mod_info["name"] and mod_info["md5"] != "":
                     mod_download_file = mod_download_path.joinpath(mod_info["name"])
                     if validate_file(mod_download_file, mod_info["md5"]):
-                        print("Already downloaded %s (md5sum). \033[96mSkipping...\033[0m" % (mod_info.get("name") or mod_project_id), flush=True)
+                        print("Already downloaded %s. \033[96mSkipping...\033[0m" % (mod_info.get("name") or mod_project_id), flush=True)
                         continue
                     else:
                         force_download = True
