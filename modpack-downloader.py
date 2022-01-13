@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
 import sys
-import os
 import requests
 import argparse
 import json
 import hashlib
-from distutils import dir_util
-from distutils import file_util
 from pathlib import Path
 from zipfile import ZipFile
 from slugify import slugify
@@ -41,9 +38,10 @@ def override_files(source_dir: Path, target_dir: Path):
         for picked_file in Path(source_dir).glob('*'):
             dest_file = target_dir.joinpath(picked_file.name)
             if picked_file.is_dir():
-                dir_util.copy_tree(str(picked_file), str(dest_file))
+                shutil.copytree(str(picked_file), str(dest_file))
             else:
-                file_util.copy_file(str(picked_file), str(dest_file))
+                dest_file.write_bytes(picked_file.read_bytes())
+                shutil.copy(str(picked_file), str(dest_file))
     except KeyboardInterrupt:
         raise
     except:
@@ -102,9 +100,14 @@ def validate_file(checked_file_path: Path, md5: str):
     if not Path(checked_file_path).exists() or not md5:
         return False
 
+    m = hashlib.md5()
     with open(checked_file_path, 'rb') as opened_file:
-        file_data = opened_file.read()
-    file_hash = hashlib.md5(file_data).hexdigest()
+        while True:
+            file_data = opened_file.read(2**16)
+            if not file_data:
+                break
+            m.update(file_data)
+    file_hash =  m.hexdigest()
 
     return (file_hash == md5)
 
@@ -119,15 +122,16 @@ def fetch_project_id(project_slug: str, max_search: int=20):
     error_msg = "Error: No results found for '%s'" % project_slug
     sys.exit(error_msg)
 
-def fetch_info(project_id: int):
-    """Returns the JSON value of a CurseForge project from a `project_id`."""
+def fetch_info(project_id: int, download_id: int = None):
+    """Returns the JSON value of a CurseForge project from a `project_id`. Alternatively returns the JSON value of a download given a `download_id`."""
     response = None
+    response_url = "%s/%s" % (API_URL, str(project_id))
+    if download_id:
+        response_url += "/file/%s" % (download_id)
     try:
-        response = requests.get("%s/%s" % (API_URL, str(project_id)), headers = { "User-Agent": USER_AGENT })
+        response = requests.get(response_url, headers = { "User-Agent": USER_AGENT })
     except:
-        print("\033[91mFailed.\033[0m.")
         return None
-    print("\033[92mDone.\033[0m")
 
     return response.json()
 
@@ -187,7 +191,10 @@ def main():
     # Fetches the modpack's info that contains the download URL and IDs
     print("Fetching project info...", end = " ", flush=True)
     project_info = fetch_info(project_id)
-    if not project_info:
+    if project_info:
+        print("\033[92mDone.\033[0m")
+    else:
+        print("\033[91mFailed.\033[0m.")
         error_msg = "Error: Could not fetch project info."
         sys.exit(error_msg)
 
@@ -306,18 +313,22 @@ def main():
                 # Download mod file if it's been designated to
                 if force_download or not mod_info["name"] or not mod_info["downloaded"] or not mod_info["url"] or mod_info["md5"] == "":
                     file_url = mod_info["url"]
+                    md5_sum = mod_info["md5"]
                     fetch_url = None
                     mod_download_file = None
 
                     # Get the mod download URL if one is not already defined
-                    if not file_url:
-                        fetch_url = "%s/%s/file/%s/download-url" % (API_URL, mod_project_id, mod_file_id)
-                        try:
-                            file_url = requests.get(fetch_url, headers = { "User-Agent": USER_AGENT }).text
-                        except KeyboardInterrupt:
-                            interrupted = True
-                            break
-                        except:
+                    if not file_url or not md5_sum:
+                        download_info = fetch_info(mod_project_id, mod_file_id)
+
+                        if download_info:
+                            file_url = download_info["downloadUrl"]
+                            for hash_index in download_info["hashes"]:
+                                if hash_index["algorithm"] == 2:
+                                    md5_sum = hash_index["value"]
+                                    mod_info["md5"] = md5_sum
+                                    break
+                        else:
                             print("Attempted to acquire mod information for %s. \033[91mFailed.\033[0m" % mod_project_id)
                             mod_failures.append(mod)
                             continue
@@ -329,12 +340,7 @@ def main():
                             progress_modified = True
 
                         try:
-                            download_response, mod_download_file = download_file(file_url, mod_download_path, args.force, mod_info["md5"])
-                            if download_response != None:
-                                new_hash = download_response.headers["ETag"].strip("\"")
-                                if mod_info["md5"] != new_hash:
-                                    progress_modified = True
-                                    mod_info["md5"] = new_hash
+                            download_response, mod_download_file = download_file(file_url, mod_download_path, args.force, md5_sum)
                         except KeyboardInterrupt:
                             interrupted = True
                             break
