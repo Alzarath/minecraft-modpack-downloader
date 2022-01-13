@@ -40,7 +40,6 @@ def override_files(source_dir: Path, target_dir: Path):
             if picked_file.is_dir():
                 shutil.copytree(str(picked_file), str(dest_file))
             else:
-                dest_file.write_bytes(picked_file.read_bytes())
                 shutil.copy(str(picked_file), str(dest_file))
     except KeyboardInterrupt:
         raise
