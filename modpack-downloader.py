@@ -4,6 +4,7 @@ import requests
 import argparse
 import json
 import hashlib
+import shutil
 from pathlib import Path
 from zipfile import ZipFile
 from slugify import slugify
